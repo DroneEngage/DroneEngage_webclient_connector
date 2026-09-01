@@ -153,6 +153,12 @@ export const CONST_TYPE_AndruavMessage_Viewlink_STATUS = 1080;
 
 export const CONST_TYPE_AndruavMessage_DEPilot_Control = 1081;
 export const CONST_TYPE_AndruavMessage_Chat = 1082;
+// Viewlink telemetry stream (gimbal angles, target/vehicle coords, LRF distance, AI targets)
+// from drone_engage_viewlink_module. Reassigned from 1081 to 1083 (was colliding
+// with DEPilot_Control) - see de_common/de_databus/messages.hpp for full field docs.
+// NOTE: no parser case for this id exists yet in js_andruav_parser.js, so this
+// telemetry is not currently consumed/displayed by the webclient.
+export const CONST_TYPE_AndruavMessage_Viewlink_Telemetry = 1083;
 
 // Binary Messages
 export const CONST_TYPE_AndruavMessage_LightTelemetry = 2022;
@@ -170,7 +176,6 @@ export const CONST_TYPE_AndruavMessage_Set_Communication_Line = 6509;
 export const CONST_TYPE_AndruavMessage_Communication_Line_Status = 6510;
 export const CONST_TYPE_AndruavMessage_SOUND_TEXT_TO_SPEECH = 6511;
 export const CONST_TYPE_AndruavMessage_SOUND_PLAY_FILE = 6512;
-export const CONST_TYPE_AndruavMessage_SOUND_LIST = 6530;
 
 export const CONST_TYPE_AndruavMessage_SDR_TRIGGER = 6513;
 export const CONST_TYPE_AndruavMessage_SDR_ACTION = 6514;
@@ -199,6 +204,49 @@ export const CONST_TYPE_AndruavMessage_LocalServer_REMOTE_EXECUTE = 6524;
 export const CONST_TYPE_AndruavMessage_CONFIG_ACTION = 6525;
 export const CONST_TYPE_AndruavMessage_CONFIG_STATUS = 6526;
 
+export const CONST_TYPE_AndruavMessage_MAVLINK_EVENTS = 6527;
+export const CONST_TYPE_AndruavMessage_IR_CAMERA_MI48_ACTION = 6528;
+export const CONST_TYPE_AndruavMessage_IR_CAMERA_MI48_STATUS = 6529;
+export const CONST_TYPE_AndruavMessage_SOUND_LIST = 6530;
+
+// Remote Telnet/Terminal messages (de_telnet module)
+export const CONST_TYPE_AndruavMessage_TELNET_ACTION = 6531;
+export const CONST_TYPE_AndruavMessage_TELNET_STATUS = 6532;
+export const CONST_TYPE_AndruavMessage_TELNET_DATA = 6533;
+export const CONST_TYPE_AndruavMessage_TELNET_REMOTE_EXECUTE = 6534;
+
+// TELNET_ACTION sub-codes
+export const CONST_TELNET_ACTION_OPEN = 0;
+export const CONST_TELNET_ACTION_CLOSE = 1;
+export const CONST_TELNET_ACTION_LIST = 2;
+export const CONST_TELNET_ACTION_RESIZE = 3;
+export const CONST_TELNET_ACTION_DATA = 4;
+
+// TELNET_STATUS sub-codes
+export const CONST_TELNET_STATUS_OPENED = 0;
+export const CONST_TELNET_STATUS_CLOSED = 1;
+export const CONST_TELNET_STATUS_DATA = 2;
+export const CONST_TELNET_STATUS_LIST = 3;
+export const CONST_TELNET_STATUS_ERROR = 4;
+export const CONST_TELNET_STATUS_RESIZED = 5;
+
+
+// Module Health/Memory status (de_common CFacade_Base::sendMemoryStatus)
+export const CONST_TYPE_AndruavMessage_MODULE_HEALTH_STATUS = 6535;
+
+// MODULE_HEALTH_ACTION sub-codes
+export const CONST_MODULE_HEALTH_ACTION_STATUS = 0;
+
+// MODULE_HEALTH_STATUS sub-codes (field [hs])
+export const CONST_MODULE_HEALTH_STATUS_OK = 0;
+export const CONST_MODULE_HEALTH_STATUS_WARNING = 1;
+export const CONST_MODULE_HEALTH_STATUS_CRITICAL = 2;
+
+// MODULE_HEALTH_TREND sub-codes (field [tr])
+export const CONST_MODULE_HEALTH_TREND_STABLE = 0;
+export const CONST_MODULE_HEALTH_TREND_UP = 1;
+export const CONST_MODULE_HEALTH_TREND_DOWN = 2;
+
 
 // System Messages
 export const CONST_TYPE_AndruavSystem_LoadTasks = 9001;
@@ -217,12 +265,17 @@ export const CONST_TYPE_AndruavSystem_SaveNews = 9016;
 export const CONST_TYPE_AndruavSystem_DeleteNews = 9017;
 export const CONST_TYPE_AndruavSystem_NewsPush = 9018;
 
+// Subcommands for QueryServer / StateServer
+export const CONST_TYPE_AndruavSystem_QueryServer_SubCmd_Is_Storage_Server_Connected = 1;
+
 // News scopes
 export const CONST_NEWS_SCOPE_GLOBAL = 'global';
 export const CONST_NEWS_SCOPE_ACCOUNT = 'account';
 
-// Subcommands for QueryServer / StateServer
-export const CONST_TYPE_AndruavSystem_QueryServer_SubCmd_Is_Storage_Server_Connected = 1;
+// News priority levels
+export const CONST_NEWS_PRIORITY_INFO = 0;
+export const CONST_NEWS_PRIORITY_WARNING = 1;
+export const CONST_NEWS_PRIORITY_CRITICAL = 2;
 
 // Storage/DB connection state codes (short strings)
 export const CONST_STORAGE_STATE_DISCONNECTED = 'dc';
@@ -300,6 +353,7 @@ export const CONST_RemoteCommand_MAKEBEEP = 103;
 export const CONST_RemoteCommand_SENDSMS = 104;
 export const CONST_RemoteCommand_ROTATECAM = 105;
 export const CONST_RemoteCommand_IMUCTRL = 106;
+export const CONST_RemoteCommand_SMSwGPS = 107;
 export const CONST_RemoteCommand_TELEMETRYCTRL = 108;
 export const CONST_RemoteCommand_NOTIFICATION = 109;
 export const CONST_RemoteCommand_STREAMVIDEO = 110;
@@ -307,6 +361,7 @@ export const CONST_RemoteCommand_RECORDVIDEO = 111;
 export const CONST_RemoteCommand_STREAMVIDEORESUME = 112;
 export const CONST_RemoteCommand_SWITCHCAM = 114;
 export const CONST_RemoteCommand_SET_GPS_SOURCE = 115;
+export const CONST_RemoteCommand_MAKEFLASH = 117;
 export const CONST_RemoteCommand_CONNECT_FCB = 118;
 export const CONST_RemoteCommand_GET_WAY_POINTS = 500;
 export const CONST_RemoteCommand_RELOAD_WAY_POINTS_FROM_FCB = 501;
@@ -511,6 +566,7 @@ export const CONST_TELEMETRY_SOURCE_GCS = 2;
 export const CONST_checkStatus_Interverl0 = 15000;
 export const CONST_checkStatus_Interverl1 = 20000;
 export const CONST_sendID_Interverl = 13000;
+export const CONST_News_Resync_Interval = 300000; // 5 minutes - safety-net resync for missed NewsPush
 export const CONST_sendRXChannels_Interval = 250;
 export const CONST_GAMEPAD_LONG_PRESS = 1250;
 export const CONST_GAMEPAD_REPEATED = 3000;
@@ -605,8 +661,16 @@ export const message_names = {
   6510: "Comm Line Status - 6510",
   6511: "Text to Speech - 6511",
   6512: "Play Sound File - 6512",
-  6530: "Sound List - 6530",
   6520: "GPIO Status - 6520",
+  6527: "MAVLink Events - 6527",
+  6528: "IR Camera MI48 Action - 6528",
+  6529: "IR Camera MI48 Status - 6529",
+  6530: "Sound List - 6530",
+  6531: "Telnet Action - 6531",
+  6532: "Telnet Status - 6532",
+  6533: "Telnet Data - 6533",
+  6534: "Telnet Remote Execute - 6534",
+  6535: "Module Health Status - 6535",
 };
 
 export const swarm_formation_names = {
@@ -635,3 +699,4 @@ export const TYPE_MODULE_CLASS_TRACKING = "trk";
 export const TYPE_MODULE_CLASS_AI_RECOGNITION = "ai_rec";
 export const TYPE_MODULE_CLASS_VIEW_LINK = "vlk";
 export const TYPE_MODULE_CLASS_GENERIC = "gen";
+export const TYPE_MODULE_CLASS_TELNET = "tel";
