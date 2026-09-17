@@ -156,6 +156,11 @@ class CLocalServer {
             plugin_party_id: this.#state.upstream.partyId,
             per: this.#state.upstream.auth.permission || '0xffffffff',
             prm: this.#state.upstream.auth.permission2 || '0xffffffff',
+            // Forward the upstream account's team fields (CONST_ACCOUNT_ID_PARAMETER /
+            // CONST_IS_ADMIN_PARAMETER) so the webclient's team-admin gate also
+            // works in plugin mode.
+            aid: this.#state.upstream.auth.teamId ?? null,
+            isadmin: this.#state.upstream.auth.isAdmin === true,
         };
     }
 

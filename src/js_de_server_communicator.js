@@ -31,6 +31,7 @@ class CDeServerCommunicator {
     #ensureReadyPromise;
     #connectWsPromise;
     #retryTimer;
+    #retryCount;
 
     constructor(cfg, state) {
         this.#cfg = cfg;
@@ -40,6 +41,7 @@ class CDeServerCommunicator {
         this.#ensureReadyPromise = null;
         this.#connectWsPromise = null;
         this.#retryTimer = null;
+        this.#retryCount = 0;
     }
 
     /**
@@ -230,7 +232,16 @@ class CDeServerCommunicator {
                 });
             } catch {
             }
-            throw new Error(`Cloud login failed: ${parsed.errorMessage || parsed.error}`);
+            const err = new Error(`Cloud login failed: ${parsed.errorMessage || parsed.error}`);
+            // Account-level rejections are not transient — retrying only
+            // trips the auth server's /w/wl/ rate limiter.
+            const c_permanentErrors = [
+                js_andruavMessages.CONST_ERROR_ACCOUNT_NOT_FOUND,
+                js_andruavMessages.CONST_ERROR_NO_PERMISSION,
+                js_andruavMessages.CONST_ERROR_ACCOUNT_DISABLED,
+            ];
+            err.isAuthRejected = c_permanentErrors.indexOf(parsed.error) !== -1;
+            throw err;
         }
 
         state.upstream.auth.sessionId = parsed.sessionId;
@@ -239,6 +250,8 @@ class CDeServerCommunicator {
         state.upstream.auth.commServerAuthKey = parsed.commServerAuthKey;
         state.upstream.auth.permission = parsed.permission;
         state.upstream.auth.permission2 = parsed.permission2;
+        state.upstream.auth.teamId = parsed.teamId;
+        state.upstream.auth.isAdmin = parsed.isAdmin;
 
         try {
             console.info('[webplugin] cloud login OK', {
@@ -255,6 +268,12 @@ class CDeServerCommunicator {
     // - Broadcasts upstream frames to all local plugin clients.
     // - Reconnects automatically on close.
     // - Uses promise deduplication to prevent race conditions.
+    //
+    // Security item 2.1: credentials are sent as a de_auth frame (the first WS
+    // message), not in the URL query string. The comm server rejects
+    // query-string credentials when ws_auth_no_frame_old_compatibility=false.
+    // The cs.f temp key is single-use — consumed on accept — so on any drop the
+    // session is discarded and ensureReady() performs a fresh cloud login.
     // -------------------------------------------------------------------------
     connectWs() {
         const cfg = this.#cfg;
@@ -279,7 +298,7 @@ class CDeServerCommunicator {
         }
 
         const protocol = cfg.cloud?.wsSecure === true ? 'wss' : 'ws';
-        const url = `${protocol}://${host}:${port}?f=${encodeURIComponent(authKey)}&s=${encodeURIComponent(state.upstream.partyId)}&at=g`;
+        const url = `${protocol}://${host}:${port}`;
 
         try {
             const safeUrl = fn_redactUrlSecrets(url);
@@ -293,20 +312,72 @@ class CDeServerCommunicator {
         this.#connectWsPromise = new Promise((resolve, reject) => {
             const ws = new WebSocket(url);
             ws.binaryType = 'arraybuffer';
+            let settled = false;
+            let authTimer = null;
 
-            ws.onopen = () => {
-                state.upstream.ws = ws;
-                state.upstream.wsConnected = true;
+            const fail = (err) => {
+                if (settled === true) return;
+                settled = true;
+                if (authTimer) clearTimeout(authTimer);
                 state.upstream.wsConnecting = false;
-
+                this.#connectWsPromise = null;
                 try {
-                    console.info('[webplugin] upstream ws open');
+                    ws.close();
                 } catch {
                 }
-                resolve();
+                reject(err);
+            };
+
+            // Comm server gives us 8s to deliver the de_auth frame; allow a
+            // little extra for the ack to come back.
+            authTimer = setTimeout(() => {
+                fail(new Error('Upstream auth timeout (no de_auth_ack)'));
+            }, cfg.reconnect?.upstreamAuthTimeoutMs || 10000);
+
+            ws.onopen = () => {
+                try {
+                    ws.send(JSON.stringify({
+                        ty: 's',
+                        mt: 'de_auth',
+                        f: authKey,
+                        s: state.upstream.partyId,
+                        at: 'g',
+                    }));
+                } catch (e) {
+                    fail(new Error('Failed to send de_auth frame'));
+                }
             };
 
             ws.onmessage = (evt) => {
+                // Intercept the connector's own auth handshake. Other frames
+                // (e.g. ConnectedCommServer, which the server sends BEFORE the
+                // ack) still flow through to local clients.
+                if (state.upstream.wsConnected !== true && typeof evt.data === 'string') {
+                    let parsed = null;
+                    try {
+                        parsed = JSON.parse(evt.data);
+                    } catch {
+                    }
+                    if (parsed && parsed.ty === 's' && parsed.mt === 'de_auth_ack') {
+                        if (parsed.r === 'ok') {
+                            settled = true;
+                            if (authTimer) clearTimeout(authTimer);
+                            state.upstream.ws = ws;
+                            state.upstream.wsConnected = true;
+                            state.upstream.wsConnecting = false;
+
+                            try {
+                                console.info('[webplugin] upstream ws open');
+                            } catch {
+                            }
+                            resolve();
+                        } else {
+                            fail(new Error(`Upstream auth rejected: ${parsed.em || 'de_auth_ack fail'}`));
+                        }
+                        return;
+                    }
+                }
+
                 // Relay upstream frames to all connected local clients.
                 if (this.#onUpstreamMessage) {
                     this.#onUpstreamMessage(evt.data);
@@ -326,9 +397,7 @@ class CDeServerCommunicator {
                     console.error('[webplugin] upstream ws error - will retry');
                 } catch {
                 }
-                state.upstream.wsConnecting = false;
-                this.#connectWsPromise = null;
-                reject(new Error('WebSocket connection failed - will retry'));
+                fail(new Error('WebSocket connection failed - will retry'));
             };
 
             ws.onclose = () => {
@@ -342,11 +411,19 @@ class CDeServerCommunicator {
                 } catch {
                 }
 
+                // The comm-server temp key (cs.f) is single-use — consumed on
+                // accept. Drop the session so the next ensureReady() performs
+                // a fresh cloud login and obtains a new key.
+                state.upstream.auth.sessionId = null;
+                state.upstream.auth.commServerAuthKey = null;
+
+                fail(new Error('WebSocket closed before auth completed'));
+
                 const delay = cfg.reconnect?.upstreamWsDelayMs || 2000;
                 if (state.upstream.reconnectTimer) clearTimeout(state.upstream.reconnectTimer);
                 state.upstream.reconnectTimer = setTimeout(() => {
                     try {
-                        this.connectWs();
+                        this.ensureReady().catch(() => { });
                     } catch {
                     }
                 }, delay);
@@ -394,6 +471,8 @@ class CDeServerCommunicator {
                 if (!this.isWsConnected) {
                     await this.connectWs();
                 }
+
+                this.#retryCount = 0;
             } catch (e) {
                 // On network errors or "No available Server" errors, schedule a retry
                 const isNetworkError = e?.isNetworkError === true || 
@@ -401,10 +480,20 @@ class CDeServerCommunicator {
                                       e?.message?.includes('Cloud unreachable');
                 const isNoServerError = e?.message?.includes('No available Server') ||
                                        e?.message?.includes('Cloud login failed');
+                // Account-level rejections (bad credentials, no permission,
+                // disabled account) are permanent — retrying them only trips
+                // the auth server's login rate limiter.
+                const isAuthRejected = e?.isAuthRejected === true;
                 
-                if (isNetworkError || isNoServerError) {
-                    const retryDelay = cfg.reconnect?.upstreamWsDelayMs || 2000;
-                    console.info(`[webplugin] Scheduling upstream retry in ${retryDelay}ms`);
+                if (isAuthRejected) {
+                    console.error('[webplugin] Upstream auth rejected - check credentials in config.json. Not retrying.');
+                } else if (isNetworkError || isNoServerError) {
+                    const baseDelay = cfg.reconnect?.upstreamWsDelayMs || 2000;
+                    // Exponential backoff capped at 120s so retries stay well
+                    // under the auth server's 10-requests/minute rate limit.
+                    const retryDelay = Math.min(baseDelay * Math.pow(2, this.#retryCount), 120000);
+                    this.#retryCount += 1;
+                    console.info(`[webplugin] Scheduling upstream retry in ${retryDelay}ms (attempt ${this.#retryCount})`);
                     
                     if (this.#retryTimer) {
                         clearTimeout(this.#retryTimer);

@@ -54,7 +54,10 @@ const fn_connectToCommServer = (parsed, partyID) => {
         }
 
         const protocol = cfg.cloud?.commSecure === true ? 'wss' : 'ws';
-        const wsUrl = `${protocol}://${commHost}:${commPort}?f=${authKey}&s=${sessionId}&at=g`;
+        // Security item 2.1: credentials are sent as a de_auth frame (first WS
+        // message), not in the URL query string. Query-string creds are
+        // rejected when the server runs ws_auth_no_frame_old_compatibility=false.
+        const wsUrl = `${protocol}://${commHost}:${commPort}`;
 
         console.log('Connecting to comm server:', {
             protocol,
@@ -65,13 +68,44 @@ const fn_connectToCommServer = (parsed, partyID) => {
 
         const ws = new WebSocket(wsUrl);
         ws.binaryType = 'arraybuffer';
+        let authed = false;
+
+        const authTimer = setTimeout(() => {
+            reject(new Error('Auth timeout - no de_auth_ack received'));
+            ws.close();
+        }, 10000);
 
         ws.on('open', () => {
-            console.log('WebSocket OPEN - Connected to comm server');
-            resolve(ws);
+            console.log('WebSocket OPEN - sending de_auth frame');
+            ws.send(JSON.stringify({
+                ty: 's',
+                mt: 'de_auth',
+                f: authKey,
+                s: partyID,
+                at: 'g',
+            }));
         });
 
         ws.on('message', (data) => {
+            if (authed !== true && typeof data === 'string') {
+                try {
+                    const msg = JSON.parse(data);
+                    if (msg.ty === 's' && msg.mt === 'de_auth_ack') {
+                        clearTimeout(authTimer);
+                        if (msg.r === 'ok') {
+                            authed = true;
+                            console.log('WebSocket AUTH OK - Connected to comm server');
+                            resolve(ws);
+                        } else {
+                            reject(new Error(`Auth rejected: ${msg.em || 'de_auth_ack fail'}`));
+                            ws.close();
+                        }
+                        return;
+                    }
+                } catch {
+                }
+            }
+
             if (typeof data === 'string') {
                 console.log('WS TEXT message:', data);
             } else {
@@ -80,10 +114,15 @@ const fn_connectToCommServer = (parsed, partyID) => {
         });
 
         ws.on('close', () => {
+            clearTimeout(authTimer);
             console.log('WebSocket CLOSED');
+            if (authed !== true) {
+                reject(new Error('WebSocket closed before auth completed'));
+            }
         });
 
         ws.on('error', (err) => {
+            clearTimeout(authTimer);
             console.error('WebSocket ERROR:', err.message);
             reject(err);
         });

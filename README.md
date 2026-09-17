@@ -459,7 +459,8 @@ Update web client config to match.
 ```json
 {
   "reconnect": {
-    "upstreamWsDelayMs": 5000  // Wait 5s before reconnecting
+    "upstreamWsDelayMs": 5000,   // Base delay before reconnecting (exponential backoff, capped at 120s)
+    "upstreamAuthTimeoutMs": 10000  // Max wait for the comm server's de_auth_ack
   }
 }
 ```

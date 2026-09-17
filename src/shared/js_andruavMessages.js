@@ -35,16 +35,22 @@ export const CONST_CMD_GET_ACCOUNT_NAME = 'gan'; // from fn_accountOperation
 export const CONST_CMD_VERIFY_HARDWARE_BY_ID = 'vhw'; // from fn_hardwareOperationFromAgent
 
 /**
- * Error codes.
+ * Error codes — MUST match the authenticator's js_constants.js.
  */
-export const CONST_ERROR_NON = 0; // from fn_createLoginCard, fn_accountOperation
-export const CONST_ERROR_ACCOUNT_NOT_FOUND = 1; // Implied from fn_createLoginCard
-export const CONST_ERROR_NO_PERMISSION = 2; // from fn_newLoginCard
-export const CONST_ERROR_OLD_APP_VERSION = 3; // from fn_checkAppVersion
-export const CONST_ERROR_SERVER_NOT_AVAILABLE = 4; // from fn_handleLoginResponses
-export const CONST_ERROR_SESSION_NOT_FOUND = 5; // from fn_hardwareOperationFromAgent
-export const CONST_ERROR_HARDWARE_NOT_FOUND = 6; // from fn_do_verifyHardwareByAccountSID
-export const CONST_ERROR_DATA_UNKNOWN_ERROR = 7; // from fn_sendSubscriptionEmail
+export const CONST_ERROR_NON                         = 0;
+export const CONST_ERROR_INVALID_DATA                = 1;
+export const CONST_ERROR_ACCOUNT_NOT_FOUND           = 2;
+export const CONST_ERROR_DATA_DATABASE_ERROR         = 3;
+export const CONST_ERROR_SERVER_NOT_AVAILABLE        = 5;
+export const CONST_ERROR_NO_PERMISSION               = 6;
+export const CONST_ERROR_SESSION_NOT_FOUND           = 7;
+export const CONST_ERROR_HARDWARE_NOT_FOUND          = 8;
+export const CONST_ERROR_ACCOUNT_DISABLED            = 9;
+export const CONST_ERROR_NOT_FOUND                   = 10;
+export const CONST_ERROR_NOT_SUPPORTED_SINGLE_MODE   = 11;
+export const CONST_ERROR_OLD_APP_VERSION             = 999; // legacy, not used by current auth server
+export const CONST_ERROR_UNKNOWN                     = 999;
+export const CONST_ERROR_DATA_UNKNOWN_ERROR          = 999;
 
 
 
@@ -70,10 +76,19 @@ export const CONST_ACCOUNT_MANAGMENT = "/am/";
 export const CONST_CMD_CREATE_ACCESSCODE = "c";
 export const CONST_CMD_REGENERATE_ACCESSCODE = "r";
 
+// Team user administration sub-commands (scoped to caller's team, isadmin-gated)
+export const CONST_CMD_LIST_TEAM_USERS    = "ltu"; // list logins in caller's team
+export const CONST_CMD_ADD_TEAM_USER      = "atu"; // add a login to caller's team
+export const CONST_CMD_UPDATE_TEAM_USER  = "utu"; // edit a login in caller's team
+export const CONST_CMD_DELETE_TEAM_USER   = "dtu"; // delete a login from caller's team
+export const CONST_CMD_GET_TEAM_INFO      = "gti"; // get caller's team info (read-only)
+
 export const CONST_ACCOUNT_NAME_PARAMETER = "acc";
 export const CONST_ACCESS_CODE_PARAMETER = "pwd";
 export const CONST_ACCOUNT_ID_PARAMETER = "aid";
 export const CONST_LOGIN_ID_PARAMETER = "lid";
+export const CONST_TARGET_LOGIN_PARAMETER = "tln";   // target login name for team-admin edit/delete
+export const CONST_IS_ADMIN_PARAMETER = "isadmin";    // isadmin flag (team-admin)
 export const CONST_SUB_COMMAND = "scm";
 export const CONST_ERROR_MSG = "em";
 export const CONST_ACTOR_TYPE = "at";
@@ -86,6 +101,9 @@ export const CONST_TYPE_AndruavMessage_GPS = 1002;
 export const CONST_TYPE_AndruavMessage_POW = 1003;
 export const CONST_TYPE_AndruavMessage_ID = 1004;
 export const CONST_TYPE_AndruavMessage_RemoteExecute = 1005;
+// Generic result/ack reply for RemoteExecute commands that have no dedicated
+// STATUS message. fields: C (echoed command id), er (result code), DS?, rq?
+export const CONST_TYPE_AndruavMessage_RemoteExecute_Result = 1084;
 export const CONST_TYPE_AndruavMessage_Telemetry = 1007;
 export const CONST_TYPE_AndruavMessage_Error = 1008;
 export const CONST_TYPE_AndruavMessage_FlightControl = 1010;
@@ -247,6 +265,64 @@ export const CONST_MODULE_HEALTH_TREND_STABLE = 0;
 export const CONST_MODULE_HEALTH_TREND_UP = 1;
 export const CONST_MODULE_HEALTH_TREND_DOWN = 2;
 
+// Precision landing (de_precland) - mirrors the TrackingTarget_* triple
+export const CONST_TYPE_AndruavMessage_PRECLAND_ACTION = 6536;
+export const CONST_TYPE_AndruavMessage_PRECLAND_TARGET = 6537;
+export const CONST_TYPE_AndruavMessage_PRECLAND_STATUS = 6538;
+
+// PRECLAND_ACTION sub-codes (field [a])
+export const CONST_PRECLAND_ACTION_DISABLE = 0;
+export const CONST_PRECLAND_ACTION_ENABLE = 1;
+export const CONST_PRECLAND_ACTION_SET_TARGET = 2;
+export const CONST_PRECLAND_ACTION_SELFTEST = 3;
+export const CONST_PRECLAND_ACTION_CALIBRATE = 4;
+export const CONST_PRECLAND_ACTION_CALIBRATE_CANCEL = 5;
+// CALIBRATE uses fields: b=cols c=rows d=square_size_m e=views f=width g=height
+
+// PRECLAND_STATUS sub-codes (field [a])
+export const CONST_PRECLAND_STATUS_DISABLED = 0;
+export const CONST_PRECLAND_STATUS_SEARCHING = 1;
+export const CONST_PRECLAND_STATUS_LOCKED = 2;
+export const CONST_PRECLAND_STATUS_DEGRADED = 3;
+export const CONST_PRECLAND_STATUS_ERROR = 4;
+
+// PRECLAND_REASON gate reason codes (PRECLAND_STATUS field [f]) — mirrors
+// de_common/de_databus/messages.hpp PRECLAND_REASON_* and the
+// preclandReasonName() text in precland_gate.hpp. NOMINAL (0) means the
+// gate accepted the pose; any other value is why it was rejected.
+export const CONST_PRECLAND_REASON_NOMINAL = 0;
+export const CONST_PRECLAND_REASON_NO_TARGET = 1;
+export const CONST_PRECLAND_REASON_STALE = 2;
+export const CONST_PRECLAND_REASON_MIN_TAGS = 3;
+export const CONST_PRECLAND_REASON_RMSE = 4;
+export const CONST_PRECLAND_REASON_ERROR = 5;
+
+export const CONST_PRECLAND_REASON_NAMES = {
+    [CONST_PRECLAND_REASON_NOMINAL]:   'nominal',
+    [CONST_PRECLAND_REASON_NO_TARGET]: 'no target',
+    [CONST_PRECLAND_REASON_STALE]:     'stale',
+    [CONST_PRECLAND_REASON_MIN_TAGS]:  'min tags',
+    [CONST_PRECLAND_REASON_RMSE]:      'rmse',
+    [CONST_PRECLAND_REASON_ERROR]:     'error',
+};
+
+// PRECLAND_CALIB_STATUS sub-codes (PRECLAND_STATUS field [g]) — mirrors
+// de_common/de_databus/messages.hpp PRECLAND_CALIB_STATUS_*.  Present only
+// while/after a calibration run is triggered by PRECLAND_ACTION_CALIBRATE.
+export const CONST_PRECLAND_CALIB_STATUS_IDLE = 0;
+export const CONST_PRECLAND_CALIB_STATUS_CAPTURING = 1;
+export const CONST_PRECLAND_CALIB_STATUS_COMPUTING = 2;
+export const CONST_PRECLAND_CALIB_STATUS_DONE = 3;
+export const CONST_PRECLAND_CALIB_STATUS_FAILED = 4;
+
+export const CONST_PRECLAND_CALIB_STATUS_NAMES = {
+    [CONST_PRECLAND_CALIB_STATUS_IDLE]:      'idle',
+    [CONST_PRECLAND_CALIB_STATUS_CAPTURING]: 'capturing',
+    [CONST_PRECLAND_CALIB_STATUS_COMPUTING]: 'computing',
+    [CONST_PRECLAND_CALIB_STATUS_DONE]:       'done',
+    [CONST_PRECLAND_CALIB_STATUS_FAILED]:     'failed',
+};
+
 
 // System Messages
 export const CONST_TYPE_AndruavSystem_LoadTasks = 9001;
@@ -264,6 +340,8 @@ export const CONST_TYPE_AndruavSystem_LoadNews = 9015;
 export const CONST_TYPE_AndruavSystem_SaveNews = 9016;
 export const CONST_TYPE_AndruavSystem_DeleteNews = 9017;
 export const CONST_TYPE_AndruavSystem_NewsPush = 9018;
+export const CONST_TYPE_AndruavSystem_AisSub = 9019;
+export const CONST_TYPE_AndruavSystem_AisPush = 9020;
 
 // Subcommands for QueryServer / StateServer
 export const CONST_TYPE_AndruavSystem_QueryServer_SubCmd_Is_Storage_Server_Connected = 1;
@@ -298,8 +376,17 @@ export const CONST_ALLOW_GCS_VIDEO = 0x0000f000;
 // Account-type bits (top of the 32-bit mask).
 // Bit 31: account may be used as a GCS login.
 // Bit 30: account may be used as a unit login.
+// Bit 29: view-only mode; only chat is actionable (no control/planning/mutation).
+//         A view-mode account has bit 29 set AND no category/action bits
+//         (bits 0-25).  A full-control account (0xffffffff) has bit 29 set
+//         but also has category bits, so it is NOT view-mode.
 export const CONST_ALLOW_GCS_LOGIN = 0x80000000;
 export const CONST_ALLOW_UNIT_LOGIN = 0x40000000;
+export const CONST_ALLOW_VIEW_MODE = 0x20000000;
+
+// Category/action permission bits (bits 0-25).  When all are zero and the
+// view-mode bit is set, the account is a read-only view-mode GCS.
+export const CONST_CATEGORY_ACTION_MASK = 0x03ffffff;
 
 // Message-category permission bits (bits 16-25).
 // These gate specific message categories in de_comm's CAndruavParser.
@@ -690,6 +777,9 @@ export const message_names = {
   6533: "Telnet Data - 6533",
   6534: "Telnet Remote Execute - 6534",
   6535: "Module Health Status - 6535",
+  6536: "Precision Landing Action - 6536",
+  6537: "Precision Landing Target - 6537",
+  6538: "Precision Landing Status - 6538",
 };
 
 export const swarm_formation_names = {
@@ -711,6 +801,7 @@ export const TYPE_MODULE_CLASS_COMM = "comm";
 export const TYPE_MODULE_CLASS_FCB = "fcb";
 export const TYPE_MODULE_CLASS_CAMERA = "camera";
 export const TYPE_MODULE_CLASS_P2P = "p2p";
+export const TYPE_MODULE_CLASS_PRECISION_LANDING = "pl";
 export const TYPE_MODULE_CLASS_SDR = "sdr";
 export const TYPE_MODULE_CLASS_SOUND = "snd";
 export const TYPE_MODULE_CLASS_GPIO = "gpio";

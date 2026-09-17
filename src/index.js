@@ -185,6 +185,8 @@ const state = {
             commServerAuthKey: null,
             permission: null,
             permission2: null,
+            teamId: null,
+            isAdmin: false,
         },
         ws: null,
         wsConnected: false,
