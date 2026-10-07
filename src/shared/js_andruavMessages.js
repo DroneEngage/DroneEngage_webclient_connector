@@ -172,7 +172,7 @@ export const CONST_TYPE_AndruavMessage_Viewlink_STATUS = 1080;
 export const CONST_TYPE_AndruavMessage_DEPilot_Control = 1081;
 export const CONST_TYPE_AndruavMessage_Chat = 1082;
 // Viewlink telemetry stream (gimbal angles, target/vehicle coords, LRF distance, AI targets)
-// from drone_engage_viewlink_module. Reassigned from 1081 to 1083 (was colliding
+// from droneengage_viewlink_module. Reassigned from 1081 to 1083 (was colliding
 // with DEPilot_Control) - see de_common/de_databus/messages.hpp for full field docs.
 // NOTE: no parser case for this id exists yet in js_andruav_parser.js, so this
 // telemetry is not currently consumed/displayed by the webclient.
