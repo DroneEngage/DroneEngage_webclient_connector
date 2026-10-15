@@ -323,6 +323,10 @@ export const CONST_PRECLAND_CALIB_STATUS_NAMES = {
     [CONST_PRECLAND_CALIB_STATUS_FAILED]:     'failed',
 };
 
+// Per-frame AI observations (perceiver -> de_comm intermodule only, never on
+// the GCS wire) — replaces AI_Recognition_TargetLocation (1078).
+export const CONST_TYPE_AndruavMessage_AI_OBSERVATIONS = 6546;
+
 
 // System Messages
 export const CONST_TYPE_AndruavSystem_LoadTasks = 9001;
@@ -780,6 +784,7 @@ export const message_names = {
   6536: "Precision Landing Action - 6536",
   6537: "Precision Landing Target - 6537",
   6538: "Precision Landing Status - 6538",
+  6546: "AI Observations - 6546",
 };
 
 export const swarm_formation_names = {
